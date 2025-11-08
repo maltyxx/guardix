@@ -4,6 +4,7 @@ use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use std::time::Duration;
 
+#[derive(Clone)]
 pub struct RedisCache {
     client: ConnectionManager,
     ttl: Duration,
@@ -89,15 +90,60 @@ mod tests {
     use super::*;
     use crate::models::decision::ThreatLevel;
 
-    // These tests require a running Redis instance
-    // Run with: docker run -d -p 6379:6379 redis:alpine
+    #[test]
+    fn test_verdict_key_format() {
+        let hash = "abc123def456";
+        let key = RedisCache::verdict_key(hash);
+        assert_eq!(key, "verdict:abc123def456");
+        assert!(key.starts_with("verdict:"));
+    }
+
+    #[test]
+    fn test_verdict_key_with_special_chars() {
+        let hash = "test-hash_123.456";
+        let key = RedisCache::verdict_key(hash);
+        assert_eq!(key, "verdict:test-hash_123.456");
+    }
+
+    #[test]
+    fn test_verdict_key_empty_hash() {
+        let key = RedisCache::verdict_key("");
+        assert_eq!(key, "verdict:");
+    }
 
     #[tokio::test]
-    #[ignore] // Ignored by default, run with --ignored flag
-    async fn test_set_and_get_verdict() {
+    async fn test_redis_connection_failure() {
+        // Try to connect to non-existent Redis
+        let result = RedisCache::new("redis://localhost:9999", Duration::from_secs(60)).await;
+        assert!(result.is_err());
+        
+        if let Err(err) = result {
+            let msg = err.to_string();
+            assert!(msg.contains("Failed to connect to Redis") || msg.contains("Connection refused"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_redis_invalid_url() {
+        // Invalid Redis URL format
+        let result = RedisCache::new("invalid://url", Duration::from_secs(60)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_redis_empty_url() {
+        // Empty URL should fail
+        let result = RedisCache::new("", Duration::from_secs(60)).await;
+        assert!(result.is_err());
+    }
+
+    // Integration test with real Redis (ignored by default)
+    #[tokio::test]
+    #[ignore]
+    async fn test_set_and_get_verdict_with_redis() {
         let cache = RedisCache::new("redis://localhost:6379", Duration::from_secs(60))
             .await
-            .expect("Failed to create cache");
+            .expect("Failed to create cache - Redis not running?");
 
         let decision = JudgeDecision::Block {
             confidence: 0.95,
@@ -119,5 +165,74 @@ mod tests {
             .expect("Verdict not found");
 
         assert_eq!(decision, retrieved);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_nonexistent_verdict_with_redis() {
+        let cache = RedisCache::new("redis://localhost:6379", Duration::from_secs(60))
+            .await
+            .expect("Redis not running");
+
+        let result = cache.get_verdict("nonexistent_hash").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_invalidate_verdict_with_redis() {
+        let cache = RedisCache::new("redis://localhost:6379", Duration::from_secs(60))
+            .await
+            .expect("Redis not running");
+
+        let decision = JudgeDecision::Allow { confidence: 0.9 };
+        let hash = "test_invalidate";
+
+        // Set then invalidate
+        cache.set_verdict(hash, &decision).await.unwrap();
+        cache.invalidate(hash).await.unwrap();
+
+        // Should be gone
+        let result = cache.get_verdict(hash).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_ping_with_redis() {
+        let cache = RedisCache::new("redis://localhost:6379", Duration::from_secs(60))
+            .await
+            .expect("Redis not running");
+
+        let result = cache.ping().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_cache_ttl_with_redis() {
+        let cache = RedisCache::new("redis://localhost:6379", Duration::from_secs(1))
+            .await
+            .expect("Redis not running");
+
+        let decision = JudgeDecision::Flag {
+            confidence: 0.6,
+            reason: "Test".to_string(),
+            suggested_rule: None,
+        };
+        let hash = "test_ttl";
+
+        cache.set_verdict(hash, &decision).await.unwrap();
+
+        // Should exist immediately
+        let result1 = cache.get_verdict(hash).await.unwrap();
+        assert!(result1.is_some());
+
+        // Wait for TTL to expire
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Should be gone
+        let result2 = cache.get_verdict(hash).await.unwrap();
+        assert!(result2.is_none());
     }
 }

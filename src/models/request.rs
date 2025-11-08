@@ -91,3 +91,243 @@ pub struct LogEntry {
     pub ip_addr: Option<String>,
     pub user_agent: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_request_payload_new() {
+        let mut headers = HashMap::new();
+        headers.insert("content-type".to_string(), "application/json".to_string());
+
+        let mut query_params = HashMap::new();
+        query_params.insert("id".to_string(), "123".to_string());
+
+        let payload = RequestPayload::new(
+            "POST".to_string(),
+            "/api/users".to_string(),
+            headers,
+            Some(r#"{"name":"test"}"#.to_string()),
+            query_params,
+            Some("192.168.1.1".to_string()),
+        );
+
+        assert_eq!(payload.method, "POST");
+        assert_eq!(payload.path, "/api/users");
+        assert_eq!(payload.body, Some(r#"{"name":"test"}"#.to_string()));
+        assert_eq!(payload.ip_addr, Some("192.168.1.1".to_string()));
+        assert!(!payload.normalized_hash.is_empty());
+    }
+
+    #[test]
+    fn test_compute_hash_consistency() {
+        let mut query_params = HashMap::new();
+        query_params.insert("a".to_string(), "1".to_string());
+        query_params.insert("b".to_string(), "2".to_string());
+
+        let hash1 = RequestPayload::compute_hash(
+            "GET",
+            "/test",
+            &Some("body".to_string()),
+            &query_params,
+        );
+
+        // Same params, different insertion order should produce same hash
+        let mut query_params2 = HashMap::new();
+        query_params2.insert("b".to_string(), "2".to_string());
+        query_params2.insert("a".to_string(), "1".to_string());
+
+        let hash2 = RequestPayload::compute_hash(
+            "GET",
+            "/test",
+            &Some("body".to_string()),
+            &query_params2,
+        );
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_different_for_different_requests() {
+        let query_params = HashMap::new();
+
+        let hash1 = RequestPayload::compute_hash("GET", "/path1", &None, &query_params);
+        let hash2 = RequestPayload::compute_hash("GET", "/path2", &None, &query_params);
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_with_body() {
+        let query_params = HashMap::new();
+
+        let hash1 = RequestPayload::compute_hash(
+            "POST",
+            "/api",
+            &Some("body1".to_string()),
+            &query_params,
+        );
+        let hash2 = RequestPayload::compute_hash(
+            "POST",
+            "/api",
+            &Some("body2".to_string()),
+            &query_params,
+        );
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_hash_without_body() {
+        let query_params = HashMap::new();
+
+        let hash1 = RequestPayload::compute_hash("GET", "/api", &None, &query_params);
+        let hash2 = RequestPayload::compute_hash("GET", "/api", &None, &query_params);
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_get_user_agent() {
+        let mut headers = HashMap::new();
+        headers.insert("user-agent".to_string(), "Mozilla/5.0".to_string());
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            headers,
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(payload.get_user_agent(), Some(&"Mozilla/5.0".to_string()));
+    }
+
+    #[test]
+    fn test_get_user_agent_case_insensitive() {
+        let mut headers = HashMap::new();
+        headers.insert("User-Agent".to_string(), "Chrome/91.0".to_string());
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            headers,
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(payload.get_user_agent(), Some(&"Chrome/91.0".to_string()));
+    }
+
+    #[test]
+    fn test_get_user_agent_missing() {
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(payload.get_user_agent(), None);
+    }
+
+    #[test]
+    fn test_content_type() {
+        let mut headers = HashMap::new();
+        headers.insert("content-type".to_string(), "application/json".to_string());
+
+        let payload = RequestPayload::new(
+            "POST".to_string(),
+            "/api".to_string(),
+            headers,
+            Some("{}".to_string()),
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(
+            payload.content_type(),
+            Some(&"application/json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_content_type_case_insensitive() {
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "text/html".to_string());
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/page".to_string(),
+            headers,
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(payload.content_type(), Some(&"text/html".to_string()));
+    }
+
+    #[test]
+    fn test_content_type_missing() {
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        assert_eq!(payload.content_type(), None);
+    }
+
+    #[test]
+    fn test_request_payload_serialization() {
+        let mut headers = HashMap::new();
+        headers.insert("authorization".to_string(), "Bearer token".to_string());
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/secure".to_string(),
+            headers,
+            None,
+            HashMap::new(),
+            Some("10.0.0.1".to_string()),
+        );
+
+        let json = serde_json::to_string(&payload).unwrap();
+        let deserialized: RequestPayload = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(payload.method, deserialized.method);
+        assert_eq!(payload.path, deserialized.path);
+        assert_eq!(payload.normalized_hash, deserialized.normalized_hash);
+        assert_eq!(payload.ip_addr, deserialized.ip_addr);
+    }
+
+    #[test]
+    fn test_log_entry_structure() {
+        let entry = LogEntry {
+            id: 1,
+            timestamp: 1234567890,
+            method: "GET".to_string(),
+            path: "/api/test".to_string(),
+            payload_hash: "abc123".to_string(),
+            decision: "allow".to_string(),
+            confidence: 0.95,
+            reason: Some("Legitimate request".to_string()),
+            ip_addr: Some("192.168.1.1".to_string()),
+            user_agent: Some("Mozilla/5.0".to_string()),
+        };
+
+        assert_eq!(entry.id, 1);
+        assert_eq!(entry.method, "GET");
+        assert_eq!(entry.decision, "allow");
+        assert_eq!(entry.confidence, 0.95);
+    }
+}

@@ -1,0 +1,48 @@
+services:
+  guardix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: guardix
+    ports:
+      - "5000:5000"
+    environment:
+      - RUST_LOG=info,guardix=info
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./config:/app/config:ro
+      - guardix-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - guardix-network
+
+  redis:
+    image: redis:8.0-alpine
+    container_name: guardix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - guardix-network
+
+volumes:
+  guardix-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  guardix-network:
+    driver: bridge
+

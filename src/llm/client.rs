@@ -57,6 +57,13 @@ pub mod mock {
     }
 
     #[allow(dead_code)] // Used in tests
+    impl Default for MockLlmProvider {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[allow(dead_code)] // Used in tests
     impl MockLlmProvider {
         pub fn new() -> Self {
             Self {

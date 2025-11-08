@@ -202,4 +202,205 @@ mod tests {
         let id = store.log_event(&payload, &decision).await.unwrap();
         assert!(id > 0);
     }
+
+    #[tokio::test]
+    async fn test_get_flagged_since() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        // Log a flagged event
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/suspicious".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            Some("192.168.1.1".to_string()),
+        );
+
+        let decision = JudgeDecision::Flag {
+            confidence: 0.65,
+            reason: "Suspicious pattern".to_string(),
+            suggested_rule: None,
+        };
+
+        store.log_event(&payload, &decision).await.unwrap();
+
+        // Get flagged events
+        let flagged = store.get_flagged_since(0).await.unwrap();
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].decision, "flag");
+        assert_eq!(flagged[0].path, "/suspicious");
+    }
+
+    #[tokio::test]
+    async fn test_get_blocked_since() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        // Log blocked events
+        for i in 0..3 {
+            let payload = RequestPayload::new(
+                "POST".to_string(),
+                format!("/attack{}", i),
+                HashMap::new(),
+                None,
+                HashMap::new(),
+                None,
+            );
+
+            let decision = JudgeDecision::Block {
+                confidence: 0.95,
+                reason: "Attack detected".to_string(),
+                threat_level: ThreatLevel::Critical,
+            };
+
+            store.log_event(&payload, &decision).await.unwrap();
+        }
+
+        // Get blocked events
+        let blocked = store.get_blocked_since(0).await.unwrap();
+        assert_eq!(blocked.len(), 3);
+        assert!(blocked.iter().all(|e| e.decision == "block"));
+    }
+
+    #[tokio::test]
+    async fn test_get_events_since_with_limit() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        // Log 5 events
+        for i in 0..5 {
+            let payload = RequestPayload::new(
+                "GET".to_string(),
+                format!("/path{}", i),
+                HashMap::new(),
+                None,
+                HashMap::new(),
+                None,
+            );
+
+            let decision = JudgeDecision::Allow { confidence: 0.9 };
+            store.log_event(&payload, &decision).await.unwrap();
+        }
+
+        // Get events with limit
+        let events = store.get_events_since(0, 3).await.unwrap();
+        assert_eq!(events.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_count_events_by_decision() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        // Log different decision types
+        let decisions = vec![
+            JudgeDecision::Allow { confidence: 0.9 },
+            JudgeDecision::Allow { confidence: 0.85 },
+            JudgeDecision::Flag {
+                confidence: 0.6,
+                reason: "Suspicious".to_string(),
+                suggested_rule: None,
+            },
+            JudgeDecision::Block {
+                confidence: 0.95,
+                reason: "Attack".to_string(),
+                threat_level: ThreatLevel::High,
+            },
+        ];
+
+        for (i, decision) in decisions.iter().enumerate() {
+            let payload = RequestPayload::new(
+                "GET".to_string(),
+                format!("/test{}", i),
+                HashMap::new(),
+                None,
+                HashMap::new(),
+                None,
+            );
+            store.log_event(&payload, decision).await.unwrap();
+        }
+
+        // Count by decision
+        let counts = store.count_events_by_decision(0).await.unwrap();
+        
+        let allow_count = counts.iter().find(|(d, _)| d == "allow").map(|(_, c)| *c);
+        let flag_count = counts.iter().find(|(d, _)| d == "flag").map(|(_, c)| *c);
+        let block_count = counts.iter().find(|(d, _)| d == "block").map(|(_, c)| *c);
+
+        assert_eq!(allow_count, Some(2));
+        assert_eq!(flag_count, Some(1));
+        assert_eq!(block_count, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_log_event_with_allow_decision() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/legitimate".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        let decision = JudgeDecision::Allow { confidence: 0.95 };
+
+        let id = store.log_event(&payload, &decision).await.unwrap();
+        assert!(id > 0);
+
+        // Verify it was logged
+        let events = store.get_events_since(0, 10).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].decision, "allow");
+        assert!(events[0].reason.is_none()); // Allow has no reason
+    }
+
+    #[tokio::test]
+    async fn test_get_flagged_since_timestamp_filter() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let store = LogStore::new(&db_path).await.unwrap();
+
+        // Log a flagged event
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/old".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        let decision = JudgeDecision::Flag {
+            confidence: 0.6,
+            reason: "Old suspicious".to_string(),
+            suggested_rule: None,
+        };
+
+        store.log_event(&payload, &decision).await.unwrap();
+
+        // Get current timestamp
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Query with future timestamp should return nothing
+        let flagged = store.get_flagged_since(now + 1000).await.unwrap();
+        assert_eq!(flagged.len(), 0);
+
+        // Query with past timestamp should return the event
+        let flagged = store.get_flagged_since(0).await.unwrap();
+        assert_eq!(flagged.len(), 1);
+    }
 }

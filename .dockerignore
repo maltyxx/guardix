@@ -1,0 +1,47 @@
+# Build artifacts
+target/
+*.db
+*.db-shm
+*.db-wal
+
+# Development files
+.devcontainer/
+.vscode/
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Test files
+tests/
+
+# Coverage reports
+*.profdata
+*.profraw
+target/llvm-cov/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+*.swp
+*.swo
+*~
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+

@@ -331,6 +331,20 @@ struct JudgeResponseJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::LlmConfig;
+
+    fn create_test_config() -> LlmConfig {
+        LlmConfig {
+            provider: "ollama".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            model: "test-model".to_string(),
+            judge_timeout_ms: 1000,
+            judge_max_tokens: 128,
+            judge_temperature: 0.0,
+            learner_max_tokens: 2048,
+            learner_temperature: 0.3,
+        }
+    }
 
     #[test]
     fn test_parse_threat_level() {
@@ -342,6 +356,227 @@ mod tests {
             OllamaProvider::parse_threat_level("CRITICAL"),
             Some(ThreatLevel::Critical)
         );
+        assert_eq!(
+            OllamaProvider::parse_threat_level("low"),
+            Some(ThreatLevel::Low)
+        );
+        assert_eq!(
+            OllamaProvider::parse_threat_level("medium"),
+            Some(ThreatLevel::Medium)
+        );
         assert_eq!(OllamaProvider::parse_threat_level("unknown"), None);
+    }
+
+    #[test]
+    fn test_parse_judge_response_allow() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "decision": "allow",
+            "confidence": 0.95,
+            "reason": "Legitimate request",
+            "threat_level": "low"
+        }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_ok());
+
+        let decision = result.unwrap();
+        assert!(matches!(decision, JudgeDecision::Allow { .. }));
+        assert_eq!(decision.confidence(), 0.95);
+    }
+
+    #[test]
+    fn test_parse_judge_response_flag() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "decision": "flag",
+            "confidence": 0.65,
+            "reason": "Suspicious pattern detected",
+            "threat_level": "medium",
+            "suggested_rule": "Check for SQL keywords"
+        }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_ok());
+
+        let decision = result.unwrap();
+        assert!(decision.is_flag());
+        assert_eq!(decision.confidence(), 0.65);
+    }
+
+    #[test]
+    fn test_parse_judge_response_block() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "decision": "block",
+            "confidence": 0.98,
+            "reason": "SQL injection detected",
+            "threat_level": "critical"
+        }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_ok());
+
+        let decision = result.unwrap();
+        assert!(decision.is_block());
+        assert_eq!(decision.confidence(), 0.98);
+
+        if let JudgeDecision::Block { threat_level, .. } = decision {
+            assert_eq!(threat_level, ThreatLevel::Critical);
+        } else {
+            panic!("Expected Block decision");
+        }
+    }
+
+    #[test]
+    fn test_parse_judge_response_block_without_threat_level() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "decision": "block",
+            "confidence": 0.85,
+            "reason": "Malicious request"
+        }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_ok());
+
+        let decision = result.unwrap();
+        if let JudgeDecision::Block { threat_level, .. } = decision {
+            // Should default to Medium
+            assert_eq!(threat_level, ThreatLevel::Medium);
+        } else {
+            panic!("Expected Block decision");
+        }
+    }
+
+    #[test]
+    fn test_parse_judge_response_invalid_decision() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "decision": "unknown",
+            "confidence": 0.5,
+            "reason": "Test"
+        }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_judge_response_invalid_json() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{ invalid json }"#;
+
+        let result = provider.parse_judge_response(json_response);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_learner_response() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "new_rules": [
+                {
+                    "pattern": "SELECT.*FROM",
+                    "threat_type": "sqli",
+                    "description": "SQL injection pattern",
+                    "confidence": 0.9,
+                    "action": "block"
+                }
+            ],
+            "weaken_rules": ["rule-1"],
+            "remove_rules": ["rule-2"],
+            "rationales": ["Added SQLi detection"]
+        }"#;
+
+        let result = provider.parse_learner_response(json_response);
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert_eq!(output.new_rules.len(), 1);
+        assert_eq!(output.weaken_rules.len(), 1);
+        assert_eq!(output.remove_rules.len(), 1);
+        assert_eq!(output.rationales.len(), 1);
+        assert_eq!(output.new_rules[0].pattern, "SELECT.*FROM");
+    }
+
+    #[test]
+    fn test_parse_learner_response_empty() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{
+            "new_rules": [],
+            "weaken_rules": [],
+            "remove_rules": [],
+            "rationales": ["No changes needed"]
+        }"#;
+
+        let result = provider.parse_learner_response(json_response);
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert_eq!(output.new_rules.len(), 0);
+        assert_eq!(output.rationales.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_learner_response_invalid_json() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config).unwrap();
+
+        let json_response = r#"{ invalid json }"#;
+
+        let result = provider.parse_learner_response(json_response);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ollama_provider_creation() {
+        let config = create_test_config();
+        let provider = OllamaProvider::new(&config);
+
+        assert!(provider.is_ok());
+
+        let provider = provider.unwrap();
+        assert_eq!(provider.model, "test-model");
+        assert_eq!(provider.base_url, "http://localhost:11434");
+    }
+
+    #[test]
+    fn test_chat_request_structure() {
+        let request = ChatRequest {
+            model: "test-model".to_string(),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: "test content".to_string(),
+            }],
+            stream: false,
+            format: serde_json::json!({"type": "object"}),
+            options: ChatOptions {
+                temperature: 0.0,
+                num_predict: 128,
+                num_ctx: 2048,
+            },
+        };
+
+        assert_eq!(request.model, "test-model");
+        assert_eq!(request.messages.len(), 1);
+        assert_eq!(request.stream, false);
+        assert_eq!(request.options.temperature, 0.0);
     }
 }

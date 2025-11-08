@@ -31,7 +31,8 @@ ENV PATH="/home/vscode/.cargo/bin:${PATH}"
 # Install Rust development tools
 RUN source "$HOME/.cargo/env" && \
     cargo install sqlx-cli --no-default-features --features sqlite && \
-    cargo install cargo-watch
+    cargo install cargo-watch && \
+    cargo install cargo-llvm-cov
 
 # Switch back to root for remaining system-level operations
 USER root

@@ -18,6 +18,9 @@ test: ## Run all tests
 test-verbose: ## Run tests with detailed logs
 	RUST_LOG=debug cargo test -- --nocapture
 
+test-cov: ## Show test coverage percentage
+	cargo llvm-cov --lib --summary-only
+
 check: ## Check compilation without building binaries
 	cargo check
 
@@ -67,11 +70,6 @@ rulebook: ## Display current rulebook
 
 stats: ## Event statistics
 	@sqlite3 data/logs.db "SELECT decision, COUNT(*) as count FROM events GROUP BY decision;" 2>/dev/null || echo "No stats yet"
-
-install-tools: ## Install development tools (not needed in devcontainer)
-	@echo "📦 Installing Rust tools..."
-	cargo install cargo-watch sqlx-cli --no-default-features --features sqlite
-	@echo "✅ Tools installed: cargo-watch, sqlx-cli"
 
 ollama-models: ## List available Ollama models
 	@echo "📋 Available Ollama models:"

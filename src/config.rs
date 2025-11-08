@@ -187,4 +187,408 @@ mod tests {
 
         assert!(config.validate().is_ok());
     }
+
+    #[test]
+    fn test_config_validation_empty_listen_addr() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("listen_addr"));
+    }
+
+    #[test]
+    fn test_config_validation_empty_upstream_url() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("upstream_url"));
+    }
+
+    #[test]
+    fn test_config_validation_zero_request_timeout() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 0,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("request_timeout_ms"));
+    }
+
+    #[test]
+    fn test_config_validation_zero_judge_timeout() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 0,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("judge_timeout_ms"));
+    }
+
+    #[test]
+    fn test_config_validation_empty_llm_base_url() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("base_url"));
+    }
+
+    #[test]
+    fn test_config_validation_empty_llm_model() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("model"));
+    }
+
+    #[test]
+    fn test_config_validation_empty_redis_url_when_enabled() {
+        let config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "./data/logs.db".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("redis_url"));
+    }
+
+    #[test]
+    fn test_config_validation_empty_storage_paths() {
+        let mut config = Config {
+            waf: WafConfig {
+                listen_addr: "0.0.0.0:8080".to_string(),
+                upstream_url: "http://backend:3000".to_string(),
+                request_timeout_ms: 30000,
+            },
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                judge_timeout_ms: 200,
+                judge_max_tokens: 128,
+                judge_temperature: 0.0,
+                learner_max_tokens: 2048,
+                learner_temperature: 0.3,
+            },
+            cache: CacheConfig {
+                redis_url: "redis://localhost:6379".to_string(),
+                ttl_seconds: 900,
+                enabled: true,
+            },
+            storage: StorageConfig {
+                logs_db_path: "".to_string(),
+                rulebook_path: "./data/rulebook.json".to_string(),
+            },
+            learner: LearnerConfig {
+                batch_interval_minutes: 60,
+                min_flagged_requests: 10,
+                enabled: true,
+            },
+            observability: ObservabilityConfig {
+                log_level: "info".to_string(),
+                metrics_enabled: true,
+            },
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("logs_db_path"));
+
+        config.storage.logs_db_path = "./data/logs.db".to_string();
+        config.storage.rulebook_path = "".to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("rulebook_path"));
+    }
+
+    #[test]
+    fn test_waf_config_request_timeout() {
+        let config = WafConfig {
+            listen_addr: "0.0.0.0:8080".to_string(),
+            upstream_url: "http://backend:3000".to_string(),
+            request_timeout_ms: 5000,
+        };
+
+        let timeout = config.request_timeout();
+        assert_eq!(timeout.as_millis(), 5000);
+    }
+
+    #[test]
+    fn test_llm_config_judge_timeout() {
+        let config = LlmConfig {
+            provider: "ollama".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            model: "llama3.2".to_string(),
+            judge_timeout_ms: 3000,
+            judge_max_tokens: 128,
+            judge_temperature: 0.0,
+            learner_max_tokens: 2048,
+            learner_temperature: 0.3,
+        };
+
+        let timeout = config.judge_timeout();
+        assert_eq!(timeout.as_millis(), 3000);
+    }
+
+    #[test]
+    fn test_cache_config_ttl() {
+        let config = CacheConfig {
+            redis_url: "redis://localhost:6379".to_string(),
+            ttl_seconds: 600,
+            enabled: true,
+        };
+
+        let ttl = config.ttl();
+        assert_eq!(ttl.as_secs(), 600);
+    }
+
+    #[test]
+    fn test_learner_config_batch_interval() {
+        let config = LearnerConfig {
+            batch_interval_minutes: 30,
+            min_flagged_requests: 5,
+            enabled: true,
+        };
+
+        let interval = config.batch_interval();
+        assert_eq!(interval.as_secs(), 30 * 60);
+    }
 }
