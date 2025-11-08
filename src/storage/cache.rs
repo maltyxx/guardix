@@ -112,6 +112,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // Requires actual network connection attempt - run with integration tests
     async fn test_redis_connection_failure() {
         // Try to connect to non-existent Redis
         let result = RedisCache::new("redis://localhost:9999", Duration::from_secs(60)).await;

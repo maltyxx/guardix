@@ -159,19 +159,32 @@ impl OllamaProvider {
         let chat_response: ChatResponse = serde_json::from_str(&raw_body)
             .with_context(|| format!("Failed to parse Ollama chat response. Raw body: {}", raw_body))?;
 
+        // Support both standard models (content) and reasoning models (thinking)
+        let response_text = if !chat_response.message.content.is_empty() {
+            chat_response.message.content
+        } else if let Some(thinking) = chat_response.message.thinking {
+            tracing::debug!(
+                target: "guardix::llm::debug",
+                "Model returned 'thinking' field instead of 'content' (reasoning model)"
+            );
+            thinking
+        } else {
+            String::new()
+        };
+
         tracing::debug!(
             target: "guardix::llm::debug",
-            content_length = chat_response.message.content.len(),
+            response_length = response_text.len(),
             done = chat_response.done,
             "📦 PARSED CHAT RESPONSE"
         );
         tracing::trace!(
             target: "guardix::llm::debug",
             "📝 MESSAGE CONTENT:\n{}\n---END CONTENT---",
-            chat_response.message.content
+            response_text
         );
 
-        Ok(chat_response.message.content)
+        Ok(response_text)
     }
 
     fn parse_judge_response(&self, response: &str) -> Result<JudgeDecision> {
@@ -317,6 +330,9 @@ struct ChatResponse {
 #[derive(Debug, Deserialize)]
 struct ChatMessageResponse {
     content: String,
+    /// Some models (like qwen3) use a "thinking" field for reasoning instead of "content"
+    #[serde(default)]
+    thinking: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

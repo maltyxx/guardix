@@ -1,6 +1,7 @@
+use crate::config::FailMode;
 use crate::core::rulebook::Rulebook;
 use crate::llm::client::LlmProvider;
-use crate::models::decision::JudgeDecision;
+use crate::models::decision::{JudgeDecision, ThreatLevel};
 use crate::models::request::RequestPayload;
 use crate::storage::cache::RedisCache;
 use anyhow::Result;
@@ -11,12 +12,13 @@ use tokio::time::timeout;
 
 /// The Judge service is responsible for real-time request evaluation.
 /// It uses a cache-aside pattern with Redis and falls back to LLM evaluation.
-/// In case of errors or timeouts, it implements fail-open behavior (allow the request).
+/// In case of errors or timeouts, behavior depends on the configured fail_mode (open or closed).
 pub struct Judge {
     llm: Arc<dyn LlmProvider>,
     cache: Option<Arc<RedisCache>>,
     rulebook: Arc<RwLock<Rulebook>>,
     timeout_duration: Duration,
+    fail_mode: FailMode,
     metrics: JudgeMetrics,
 }
 
@@ -28,6 +30,7 @@ pub struct JudgeMetrics {
     pub llm_timeouts: Arc<std::sync::atomic::AtomicU64>,
     pub llm_errors: Arc<std::sync::atomic::AtomicU64>,
     pub fail_open_count: Arc<std::sync::atomic::AtomicU64>,
+    pub fail_closed_count: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Judge {
@@ -36,12 +39,14 @@ impl Judge {
         cache: Option<Arc<RedisCache>>,
         rulebook: Arc<RwLock<Rulebook>>,
         timeout_duration: Duration,
+        fail_mode: FailMode,
     ) -> Self {
         Self {
             llm,
             cache,
             rulebook,
             timeout_duration,
+            fail_mode,
             metrics: JudgeMetrics::default(),
         }
     }
@@ -53,7 +58,7 @@ impl Judge {
     /// 1. Check cache for existing verdict
     /// 2. If cache miss, call LLM with timeout
     /// 3. Cache the result (if cache enabled)
-    /// 4. On error/timeout: fail-open (allow request)
+    /// 4. On error/timeout: behavior depends on fail_mode (open: allow, closed: block)
     pub async fn evaluate(&self, payload: RequestPayload) -> JudgeDecision {
         use std::sync::atomic::Ordering;
 
@@ -92,7 +97,7 @@ impl Judge {
             }
         }
 
-        // Step 4: Handle result or fail-open
+        // Step 4: Handle result or apply fail mode
         match decision {
             Ok(dec) => {
                 tracing::info!(
@@ -105,14 +110,32 @@ impl Judge {
                 dec
             }
             Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    method = %payload.method,
-                    path = %payload.path,
-                    "LLM evaluation failed, failing open"
-                );
-                self.metrics.fail_open_count.fetch_add(1, Ordering::Relaxed);
-                JudgeDecision::Allow { confidence: 0.0 }
+                match self.fail_mode {
+                    FailMode::Open => {
+                        tracing::warn!(
+                            error = %e,
+                            method = %payload.method,
+                            path = %payload.path,
+                            "LLM evaluation failed, failing open (allowing request)"
+                        );
+                        self.metrics.fail_open_count.fetch_add(1, Ordering::Relaxed);
+                        JudgeDecision::Allow { confidence: 0.0 }
+                    }
+                    FailMode::Closed => {
+                        tracing::warn!(
+                            error = %e,
+                            method = %payload.method,
+                            path = %payload.path,
+                            "LLM evaluation failed, failing closed (blocking request)"
+                        );
+                        self.metrics.fail_closed_count.fetch_add(1, Ordering::Relaxed);
+                        JudgeDecision::Block {
+                            confidence: 0.0,
+                            reason: "LLM evaluation failed".to_string(),
+                            threat_level: ThreatLevel::Medium,
+                        }
+                    }
+                }
             }
         }
     }
@@ -168,7 +191,7 @@ mod tests {
     async fn test_judge_with_mock_llm() {
         let llm = Arc::new(MockLlmProvider::new());
         let rulebook = Arc::new(RwLock::new(Rulebook::new()));
-        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1));
+        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1), FailMode::Open);
 
         let payload = RequestPayload::new(
             "GET".to_string(),
@@ -187,7 +210,7 @@ mod tests {
     async fn test_judge_block_decision() {
         let llm = Arc::new(MockLlmProvider::new().with_block());
         let rulebook = Arc::new(RwLock::new(Rulebook::new()));
-        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1));
+        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1), FailMode::Open);
 
         let payload = RequestPayload::new(
             "GET".to_string(),
@@ -208,7 +231,7 @@ mod tests {
 
         let llm = Arc::new(MockLlmProvider::new());
         let rulebook = Arc::new(RwLock::new(Rulebook::new()));
-        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1));
+        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1), FailMode::Open);
 
         let payload = RequestPayload::new(
             "GET".to_string(),
@@ -222,5 +245,51 @@ mod tests {
         judge.evaluate(payload).await;
 
         assert_eq!(judge.metrics().total_requests.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fail_mode_open() {
+        use std::sync::atomic::Ordering;
+
+        // Mock LLM that always fails
+        let llm = Arc::new(MockLlmProvider::new().with_error());
+        let rulebook = Arc::new(RwLock::new(Rulebook::new()));
+        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1), FailMode::Open);
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        let decision = judge.evaluate(payload).await;
+        assert!(matches!(decision, JudgeDecision::Allow { confidence: 0.0 }));
+        assert_eq!(judge.metrics().fail_open_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fail_mode_closed() {
+        use std::sync::atomic::Ordering;
+
+        // Mock LLM that always fails
+        let llm = Arc::new(MockLlmProvider::new().with_error());
+        let rulebook = Arc::new(RwLock::new(Rulebook::new()));
+        let judge = Judge::new(llm, None, rulebook, Duration::from_secs(1), FailMode::Closed);
+
+        let payload = RequestPayload::new(
+            "GET".to_string(),
+            "/test".to_string(),
+            HashMap::new(),
+            None,
+            HashMap::new(),
+            None,
+        );
+
+        let decision = judge.evaluate(payload).await;
+        assert!(decision.is_block());
+        assert_eq!(judge.metrics().fail_closed_count.load(Ordering::Relaxed), 1);
     }
 }

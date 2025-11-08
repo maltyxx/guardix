@@ -102,6 +102,7 @@ async fn main() -> Result<()> {
         cache,
         Arc::clone(&rulebook),
         config.llm.judge_timeout(),
+        config.waf.fail_mode.clone(),
     ));
     tracing::info!("✓ Judge service initialized");
 

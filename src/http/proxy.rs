@@ -378,6 +378,7 @@ mod tests {
             None,
             rulebook,
             std::time::Duration::from_secs(1),
+            crate::config::FailMode::Open,
         ));
 
         let runtime = tokio::runtime::Runtime::new().unwrap();

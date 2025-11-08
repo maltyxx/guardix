@@ -54,6 +54,7 @@ pub mod mock {
     #[allow(dead_code)] // Used in tests
     pub struct MockLlmProvider {
         should_block: bool,
+        should_error: bool,
     }
 
     #[allow(dead_code)] // Used in tests
@@ -68,11 +69,17 @@ pub mod mock {
         pub fn new() -> Self {
             Self {
                 should_block: false,
+                should_error: false,
             }
         }
 
         pub fn with_block(mut self) -> Self {
             self.should_block = true;
+            self
+        }
+
+        pub fn with_error(mut self) -> Self {
+            self.should_error = true;
             self
         }
     }
@@ -84,7 +91,9 @@ pub mod mock {
             _payload: &RequestPayload,
             _rules: &Rulebook,
         ) -> Result<JudgeDecision> {
-            if self.should_block {
+            if self.should_error {
+                anyhow::bail!("Mock LLM error")
+            } else if self.should_block {
                 Ok(JudgeDecision::Block {
                     confidence: 0.9,
                     reason: "Mock block".to_string(),

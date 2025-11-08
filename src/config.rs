@@ -74,11 +74,29 @@ impl Config {
     }
 }
 
+/// Defines the behavior when LLM evaluation fails
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum FailMode {
+    /// Allow the request through (fail open - less secure but more available)
+    Open,
+    /// Block the request with 403 Forbidden (fail closed - more secure but less available)
+    Closed,
+}
+
+impl Default for FailMode {
+    fn default() -> Self {
+        FailMode::Open
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WafConfig {
     pub listen_addr: String,
     pub upstream_url: String,
     pub request_timeout_ms: u64,
+    #[serde(default)]
+    pub fail_mode: FailMode,
 }
 
 impl WafConfig {
@@ -154,6 +172,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -195,6 +214,7 @@ mod tests {
                 listen_addr: "".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -238,6 +258,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -281,6 +302,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 0,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -324,6 +346,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -367,6 +390,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -410,6 +434,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -453,6 +478,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -496,6 +522,7 @@ mod tests {
                 listen_addr: "0.0.0.0:8080".to_string(),
                 upstream_url: "http://backend:3000".to_string(),
                 request_timeout_ms: 30000,
+                fail_mode: FailMode::Open,
             },
             llm: LlmConfig {
                 provider: "ollama".to_string(),
@@ -545,6 +572,7 @@ mod tests {
             listen_addr: "0.0.0.0:8080".to_string(),
             upstream_url: "http://backend:3000".to_string(),
             request_timeout_ms: 5000,
+            fail_mode: FailMode::Open,
         };
 
         let timeout = config.request_timeout();

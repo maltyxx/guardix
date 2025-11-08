@@ -2,11 +2,12 @@ waf:
   listen_addr: "0.0.0.0:5000"
   upstream_url: "http://localhost:3000"
   request_timeout_ms: 30000
+  fail_mode: "open"
 
 llm:
   provider: "ollama"
   base_url: "http://host.docker.internal:11434"
-  model: "qwen3:0.6b"
+  model: "gpt-oss:20b"
   judge_timeout_ms: 30000
   judge_max_tokens: 512
   judge_temperature: 0.0
