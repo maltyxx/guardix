@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG ALPINE_VERSION=3.22
 
 FROM mcr.microsoft.com/devcontainers/base:alpine-${ALPINE_VERSION} AS dev

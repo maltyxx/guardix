@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "🦀 Setting up WAFrust development environment..."
+echo "🦀 Setting up Guardix
+ development environment..."
 
 # Ensure we're in the workspace directory
 cd /workspace

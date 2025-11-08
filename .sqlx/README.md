@@ -44,7 +44,7 @@ When you modify SQL queries or database schema:
 make sqlx-prepare
 
 # Or manually
-DATABASE_URL="sqlite:///tmp/wafrust.db" cargo sqlx prepare
+DATABASE_URL="sqlite:///tmp/guardix.db" cargo sqlx prepare
 ```
 
 This will:
