@@ -40,8 +40,10 @@ RUN mkdir src && \
     cargo build --release && \
     rm -rf src target/release/deps/guardix*
 
-# Copy source code
+# Copy source code and SQLx dependencies
 COPY src ./src
+COPY migrations ./migrations
+COPY .sqlx ./.sqlx
 
 # Build the actual application
 RUN cargo build --release --locked
@@ -70,6 +72,9 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder --chown=guardix:guardix /app/target/release/guardix /usr/local/bin/guardix
+
+# Copy default configuration
+COPY --chown=guardix:guardix config.yaml.example /app/config.yaml
 
 # Switch to non-root user
 USER guardix
