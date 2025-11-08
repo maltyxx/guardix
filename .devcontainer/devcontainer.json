@@ -1,0 +1,37 @@
+{
+	"name": "wafrust",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspace",
+	"shutdownAction": "stopCompose",
+	"forwardPorts": [
+		5000,
+		"cache:6379"
+	],
+	"postCreateCommand": "bash .devcontainer/setup.sh",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"vadimcn.vscode-lldb",
+				"tamasfe.even-better-toml",
+				"serayuzgur.crates",
+				"fill-labs.dependi",
+				"usernamehw.errorlens",
+				"redhat.vscode-yaml"
+			],
+			"settings": {
+				"rust-analyzer.checkOnSave.command": "clippy",
+				"rust-analyzer.cargo.features": "all",
+				"editor.formatOnSave": true
+			}
+		}
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installZsh": true,
+			"configureZshAsDefaultShell": true,
+			"installOhMyZsh": true
+		}
+	}
+}

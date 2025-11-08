@@ -1,0 +1,77 @@
+[package]
+name = "guardix"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yoann Vanitou <yvanitou@gmail.com>"]
+description = "AI-Powered WAF that learns - Autonomous security with LLM intelligence"
+repository = "https://github.com/maltyxx/guardix"
+license = "MIT"
+keywords = ["waf", "security", "llm", "firewall", "ai"]
+categories = ["web-programming", "network-programming"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "guardix"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP Server & Async Runtime
+axum = "0.8"
+tokio = { version = "1.48", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "timeout", "limit"] }
+hyper = { version = "1.7", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http = "1.3"
+http-body-util = "0.1"
+
+# LLM Client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Storage
+redis = { version = "0.32", features = ["tokio-comp", "connection-manager"] }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-native-tls",
+    "sqlite",
+    "chrono",
+    "migrate",
+    "macros",
+] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml_ng = "0.10"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# TODO V2: Add metrics back when implementing /metrics endpoint
+# metrics = "0.24"
+# metrics-exporter-prometheus = "0.17"
+
+# Utilities
+sha2 = "0.10"
+notify = "8.2"
+anyhow = "1.0"
+# TODO V2: Add thiserror back when creating custom error types
+# thiserror = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+uuid = { version = "1.18", features = ["v4", "serde"] }
+urlencoding = "2.1"
+
+[dev-dependencies]
+# TODO V2: Add mockall back if creating more complex mocks
+# mockall = "0.13"
+# TODO V2: Add wiremock back for HTTP mocking in integration tests
+# wiremock = "0.6"
+tempfile = "3.23" # Used in unit tests (src/storage/*.rs, src/core/learner.rs)
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

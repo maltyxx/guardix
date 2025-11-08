@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id as \"id!\", timestamp as \"timestamp!\", method, path, payload_hash, decision, confidence as \"confidence: f32\", reason, ip_addr, user_agent\n            FROM events\n            WHERE timestamp >= ?\n            ORDER BY timestamp DESC\n            LIMIT ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "timestamp!",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "method",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "path",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "payload_hash",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "decision",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "confidence: f32",
+        "ordinal": 6,
+        "type_info": "Float"
+      },
+      {
+        "name": "reason",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "ip_addr",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_agent",
+        "ordinal": 9,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "595173811fe14073275a45c7f725e09f004314031e0470df26402d96856a9c75"
+}

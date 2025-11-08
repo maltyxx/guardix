@@ -1,0 +1,25 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Rust source
+*.rs text eol=lf
+
+# Configuration
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+
+# Scripts
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Documentation
+*.md text eol=lf
+
+# Binary files
+*.db binary
+*.so binary
+*.dylib binary
+*.dll binary
+

@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:cached
+    working_dir: /workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  cache:
+    image: redis:8.0-alpine

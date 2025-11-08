@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT decision, COUNT(*) as count\n            FROM events\n            WHERE timestamp >= ?\n            GROUP BY decision\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "decision",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "count",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "509f239734b6947874fc5588d36d1c742c5d757ff55326b5a813cb6238f87fcf"
+}

@@ -1,0 +1,33 @@
+waf:
+  listen_addr: "0.0.0.0:5000"
+  upstream_url: "http://localhost:3000"
+  request_timeout_ms: 30000
+
+llm:
+  provider: "ollama"
+  base_url: "http://host.docker.internal:11434"
+  model: "qwen3:0.6b"
+  judge_timeout_ms: 30000
+  judge_max_tokens: 512
+  judge_temperature: 0.0
+  learner_max_tokens: 2048
+  learner_temperature: 0.3
+
+cache:
+  redis_url: "redis://cache:6379"
+  ttl_seconds: 900
+  enabled: false
+
+storage:
+  logs_db_path: "./data/logs.db"
+  rulebook_path: "./data/rulebook.json"
+
+learner:
+  batch_interval_minutes: 60
+  min_flagged_requests: 10
+  enabled: true
+
+observability:
+  log_level: "info"
+  metrics_enabled: true
+
